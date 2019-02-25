@@ -28,7 +28,7 @@ client.start()
 app = Quart(__name__)
 
 app.config.update({
-    'DEBUG': True,
+    'DEBUG': is_debug,
     'SECRET_KEY': os.environ['SECRET_KEY'],
     'UPLOAD_FOLDER': "/tmp/tg_proxy",
     'MAX_CONTENT_LENGTH': 1536 * 1024 * 1024, # 1.5 GB allowed by Telegram
@@ -39,7 +39,7 @@ async def upload_file():
     auth_token = os.environ.get('AUTH_TOKEN', "thequickbrownfoxjumpsoverthelazydog")
 
     # check if app is authorized to use the proxy
-    if request.headers.get("X-Auth-Token") != auth_token and not is_debug:
+    if request.headers.get("X-Auth-Token") != auth_token and not app.config['DEBUG']:
         return show_error(401, "You are not allowed to use the proxy here!")
 
     if request.method == 'POST':
