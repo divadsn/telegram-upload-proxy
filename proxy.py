@@ -6,14 +6,11 @@ import sys
 import json
 import logging
 
-from telethon import TelegramClient
+from telethon.sync import TelegramClient
 from quart import Quart, Response, request
 from werkzeug.utils import secure_filename
 
 is_debug = bool(os.environ.get('DEBUG', False))
-
-UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', "/tmp/tgproxy")
-ALLOWED_EXTENSIONS = os.environ.get('ALLOWED_EXTENSIONS', "").split()
 
 # enable logging
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -21,21 +18,21 @@ logger = logging.getLogger(__name__)
 
 # you must get your own api_id and app_hash
 # from https://my.telegram.org, under API Development.
-api_id = os.environ.get('APP_ID', None)
-api_hash = os.environ.get('APP_HASH', None)
+app_id = os.environ.get('APP_ID', None)
+app_hash = os.environ.get('APP_HASH', None)
+
+client = TelegramClient("proxy", app_id, app_hash)
+client.start()
 
 # Initialize Flask app
 app = Quart(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 10240000
 
-# create directories
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+app.config.update({
+    'DEBUG': True,
+    'SECRET_KEY': os.environ['SECRET_KEY'],
+    'UPLOAD_FOLDER': "/tmp/tg_proxy",
+    'MAX_CONTENT_LENGTH': 1536 * 1024 * 1024, # 1.5 GB allowed by Telegram
+})
 
 @app.route("/proxy.php/upload_file", methods=['GET', 'POST'])
 async def upload_file():
@@ -66,9 +63,6 @@ async def upload_file():
         file.save(file_path)
 
         # upload file via Telegram
-        client = TelegramClient("proxy", api_id, api_hash)
-        await client.start()
-
         input_file = await client.upload_file(file=file_path, part_size_kb=512, file_name=filename)
 
         return response({ "id": input_file.id, "filename": filename }, 200)
@@ -95,5 +89,4 @@ def response(output, status):
 
 # Run the app!
 if __name__ == "__main__":
-    app.run()
-    #serve(app, host=os.environ.get('LISTEN_ADDR', "localhost"), port=os.environ.get('PORT', "3000"))
+    app.run(host=os.environ.get('LISTEN_ADDR', "localhost"), port=os.environ.get('PORT', "3000"))
